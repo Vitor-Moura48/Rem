@@ -1,3 +1,8 @@
-espectrograms/
-training_data/
 sleep-edf-database-expanded-1.0.0/
+espectrograms/*
+dataset/*
+metrics/*
+models/*
+
+.venv/
+__pycache__/
