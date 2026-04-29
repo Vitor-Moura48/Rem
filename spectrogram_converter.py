@@ -122,16 +122,3 @@ class SpectrogramConverter:
                         plt.close(fig)
                     
             del tfr # Libera a memória após processar cada bloco de epochs
-
-if __name__ == "__main__":
-    converter = SpectrogramConverter()
-
-    """
-    converter.convert(
-        edf_path="sleep-edf-database-expanded-1.0.0/sleep-cassette/SC4001E0-PSG.edf",
-        hypnogram_path="sleep-edf-database-expanded-1.0.0/sleep-cassette/SC4001EC-Hypnogram.edf"
-        )
-    """
-
-    splitter = DataSplitter()
-    splitter.split()
