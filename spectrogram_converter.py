@@ -4,10 +4,13 @@ import numpy as np
 import os
 import uuid
 
-from data_splitter import DataSplitter
-
 class SpectrogramConverter:
-    def __init__(self, output_dir="espectrograms", freqs=None, vlim=(-0.5, 2), cmap="turbo", epoch_range=300):
+    def __init__(
+        self, 
+        output_dir="espectrograms", 
+        freqs=None, vlim=(-0.5, 2), 
+        cmap="turbo", epoch_range=300
+    ):
 
         self.output_dir = output_dir
         self.freqs = freqs if freqs is not None else np.linspace(0.5, 30, 50) # Frequências de interesse
@@ -44,6 +47,13 @@ class SpectrogramConverter:
 
         # Aplica um filtro passa-banda para remover ruídos e artefatos
         raw.filter(1, 35)
+
+        # Cria um RawArray de canal único com a média dos canais EEG
+        data = raw.get_data()                          # (x, n_samples)
+        fused = data.mean(axis=0, keepdims=True)       # (1, n_samples)
+        info = mne.create_info(ch_names=['EEG_fused'], sfreq=raw.info['sfreq'], ch_types=['eeg'])
+        raw = mne.io.RawArray(fused, info)
+        raw.set_annotations(annot)
 
         annotation_desc_2_event_id = {
             "Sleep stage W": 1,

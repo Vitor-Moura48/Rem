@@ -222,7 +222,7 @@ class SleepStageClassifier():
         plt.savefig(f'{save_dir}/confusion_matrix.png')
 
         # Matriz de confusão normalizada
-        cm_normalized = cm.astype('float') / cm.sum(axis=1)
+        cm_normalized = cm.astype('float') / cm.sum(axis=1).reshape(-1, 1)
 
         plt.figure(figsize=(8, 6))
         sns.heatmap(cm_normalized, annot=True, fmt='.2f', cmap='Blues',
