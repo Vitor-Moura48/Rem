@@ -7,7 +7,7 @@ import uuid
 class SpectrogramConverter:
     def __init__(
         self, 
-        output_dir="espectrograms", 
+        output_dir="spectrograms", 
         freqs=None, vlim=(-0.5, 2), 
         cmap="turbo", epoch_range=300
     ):
@@ -88,10 +88,16 @@ class SpectrogramConverter:
         # Cria o diretório se não existir
         os.makedirs(self.output_dir, exist_ok=True)
 
+        # Extrai o ID do sujeito a partir do nome do arquivo EDF
+        filename = os.path.basename(edf_path)
+        subject_id = filename[3:5]
+        # Cria um subdiretório para o sujeito
+        os.makedirs(f"{self.output_dir}/subject_{subject_id}", exist_ok=True)
+
         # Cria subdiretórios para cada estágio
         for stage in event_id_to_desc.values():
             stage_clean = stage.replace(" ", "_")
-            os.makedirs(f"{self.output_dir}/{stage_clean}", exist_ok=True)
+            os.makedirs(f"{self.output_dir}/subject_{subject_id}/{stage_clean}", exist_ok=True)
 
         for subset in splited_epochs:
 
@@ -103,13 +109,18 @@ class SpectrogramConverter:
                 average=False
             )
 
-            # Aplica uma normalização para cada epoch
-            tfr.apply_baseline((-1, 0), mode="logratio")
-
             # Salva os espectrogramas para cada epoch e canal
             for i in range(len(tfr)):
                 for ch in tfr.ch_names:
-                    figs = tfr[i].plot(picks=[ch], show=False, cmap=self.cmap, vlim=self.vlim, colorbar=False)
+                    figs = tfr[i].plot(
+                        picks=[ch],
+                        show=False,
+                        cmap=self.cmap,
+                        vlim=self.vlim,
+                        colorbar=False,
+                        baseline=(-1, 0),
+                        mode="logratio",
+                    )
 
                     # Obtém o event_id da epoch atual
                     epoch_event_id = subset.events[i, 2]
@@ -124,7 +135,7 @@ class SpectrogramConverter:
                         
                         run_id = str(uuid.uuid4())[:8]
                         fig.savefig(
-                            f"{self.output_dir}/{stage_clean}/{ch}_{run_id}.png", 
+                            f"{self.output_dir}/subject_{subject_id}/{stage_clean}/{ch}_{run_id}.png", 
                             dpi=100,
                             bbox_inches="tight",
                             pad_inches=0,

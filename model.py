@@ -13,17 +13,12 @@ from torch.utils.data import DataLoader, WeightedRandomSampler
 
 class SleepStageClassifier():
 
-    def __init__(self, dataset_dir: str = 'dataset', device: torch.device = None, batch_size: int = 32):
-
+    def __init__(self, train_dataset: datasets.ImageFolder, test_dataset: datasets.ImageFolder, device: torch.device = None, batch_size: int = 32):
+        
+        self.train_dataset = train_dataset
+        self.test_dataset  = test_dataset
         self.device = device if device else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.batch_size = batch_size
-
-        # Aplica as transformações de pré-processamento para treino e teste
-        self.train_transforms, self.test_transforms = self.apply_transforms()
-
-        # --- Dataset: lê as pastas automaticamente ---
-        self.train_dataset = datasets.ImageFolder(root=f'{dataset_dir}/train', transform=self.train_transforms)
-        self.test_dataset  = datasets.ImageFolder(root=f'{dataset_dir}/test',  transform=self.test_transforms)
 
         # --- DataLoader: cria os batches ---
         self.sampler = self.create_custom_sampler()
@@ -42,8 +37,8 @@ class SleepStageClassifier():
         # Configura a função de perda
         self.criterion = nn.CrossEntropyLoss()
 
-
-    def apply_transforms(self):
+    @staticmethod
+    def get_transforms():
 
         train_transforms = transforms.Compose([
             transforms.Resize((224, 224)),        # Redimensiona de acordo com o modelo pré-treinado
@@ -115,7 +110,7 @@ class SleepStageClassifier():
         torch.save(self.model.state_dict(), f'{directory}/{name}')
         
         if save_history:
-            self.save_training_history(history, save_dir=history_dir)
+            self.save_training_history(history, filename=name.replace('.pth', '.png'), save_dir=history_dir)
 
 
     def train_epoch(self):
@@ -156,7 +151,7 @@ class SleepStageClassifier():
 
         return total_loss / len(self.test_loader), correct / len(self.test_loader.dataset)
 
-    def save_training_history(self, history, save_dir='metrics'):
+    def save_training_history(self, history, filename, save_dir='metrics'):
         epochs = range(1, len(history['train_loss']) + 1)
         fig, ax1 = plt.subplots(1, 1, figsize=(12, 4))
 
@@ -169,7 +164,7 @@ class SleepStageClassifier():
         ax1.legend()
 
         plt.tight_layout()
-        plt.savefig(f'{save_dir}/training_history.png')
+        plt.savefig(f'{save_dir}/{filename}')
     
     def load_model(self, path):
         self.model.load_state_dict(torch.load(path, map_location=self.device))
@@ -261,13 +256,3 @@ class SleepStageClassifier():
         plt.title('Métricas por Classe', pad=20)
         plt.tight_layout()
         plt.savefig(f'{save_dir}/metrics_table.png')
-            
-
-
-if __name__ == "__main__":
-
-    model_classifier = SleepStageClassifier()
-    #model_classifier.apply_epochs(epochs=20, directory='models', name='vgg16_finetuned.pth', save_history=True)
-
-    model_classifier.load_model('models/vgg16_finetuned.pth')
-    model_classifier.evaluate_model()
