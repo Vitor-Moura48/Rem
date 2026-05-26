@@ -1,13 +1,15 @@
 import os
+import gc
+import torch
 
 from spectrogram_converter import SpectrogramConverter
 from data_splitter import DataSplitter
 from model import SleepStageClassifier
 from torchvision import datasets
-from torch.utils.data import ConcatDataset
+from cached_dataset import CachedImageFolder, CachedConcatDataset
+from model_factory import ModelFactory
 
 if __name__ == "__main__":
-    
     """
     converter = SpectrogramConverter()
 
@@ -27,8 +29,10 @@ if __name__ == "__main__":
     #splitter.split(seed=42)
 
 
+    model_name = "lenet"  # "vgg16", "resnet18", "efficientnet_b0", "lenet"
+
     # Obtem as transformações de pré-processamento para treino e teste
-    train_transforms, test_transforms = SleepStageClassifier.get_transforms()
+    train_transforms, test_transforms = ModelFactory.get_transforms(model_name)
 
     dataset_dir = 'espectrograms'
     subjects = os.listdir(dataset_dir)
@@ -36,16 +40,32 @@ if __name__ == "__main__":
     for i in range(len(subjects)):
         subjects_train = [s for s in subjects if s != f'{subjects[i]}']
 
-        test_dataset = datasets.ImageFolder(root=f'{dataset_dir}/{subjects[i]}', transform=test_transforms)
-        train_dataset = ConcatDataset([datasets.ImageFolder(root=f'{dataset_dir}/{j}', transform=train_transforms) for j in subjects_train])
-        
-        # Adiciona os atributos de samples e classes ao dataset de treino para compatibilidade com o método de treinamento
-        train_dataset.samples = [s for ds in train_dataset.datasets for s in ds.samples]
-        train_dataset.classes = train_dataset.datasets[0].classes
+        # Datasets com cache: imagens são carregadas e transformadas UMA vez e mantidas na RAM
+        test_dataset = CachedImageFolder(
+            datasets.ImageFolder(root=f'{dataset_dir}/{subjects[i]}', transform=test_transforms)
+        )
+        train_dataset = CachedConcatDataset(
+            [datasets.ImageFolder(root=f'{dataset_dir}/{j}', transform=train_transforms) for j in subjects_train]
+        )
 
-        classifier = SleepStageClassifier(train_dataset=train_dataset, test_dataset=test_dataset)
-        classifier.apply_epochs(epochs=20, directory='models', name=f'vgg16_finetuned{i+1:02d}.pth', save_history=True)
+        classifier = SleepStageClassifier(train_dataset=train_dataset, test_dataset=test_dataset, model_name=model_name)
+        classifier.apply_epochs(epochs=20, directory='models', name=f'{model_name}_finetuned{i+1:02d}.pth', save_history=True)
 
-    for model in os.listdir('models'):
-        classifier.load_model(f'models/{model}')
-        classifier.evaluate_model()
+        # Libera memória do fold anterior antes de carregar o próximo
+        del classifier, train_dataset, test_dataset
+        gc.collect()
+        torch.cuda.empty_cache()
+
+
+
+
+
+
+
+
+
+
+
+    #for model in os.listdir('models'):
+    #    classifier.load_model(f'models/{model}')
+    #    classifier.evaluate_model()

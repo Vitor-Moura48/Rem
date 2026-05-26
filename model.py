@@ -7,54 +7,42 @@ import seaborn as sns
 from sklearn.metrics import (confusion_matrix, classification_report,
                              precision_score, recall_score, f1_score)
 
-from torchvision import models
-from torchvision import datasets, transforms
-from torch.utils.data import DataLoader, WeightedRandomSampler
+from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
+
+from model_factory import ModelFactory
 
 class SleepStageClassifier():
 
-    def __init__(self, train_dataset: datasets.ImageFolder, test_dataset: datasets.ImageFolder, device: torch.device = None, batch_size: int = 32):
+    def __init__(self, train_dataset: Dataset, test_dataset: Dataset, model_name: str, device: torch.device = None):
         
         self.train_dataset = train_dataset
         self.test_dataset  = test_dataset
         self.device = device if device else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.batch_size = batch_size
+        self.model_name = model_name
+
+        # Obtém configuração do modelo (batch_size, lr, etc.)
+        config = ModelFactory.get_config(model_name)
+        
+        self.batch_size = config["batch_size"]
+        lr = config["lr"]
 
         # --- DataLoader: cria os batches ---
         self.sampler = self.create_custom_sampler()
-        self.test_loader  = DataLoader(self.test_dataset,  batch_size=self.batch_size, shuffle=False, num_workers=12, pin_memory=True)
-        self.train_loader = DataLoader(self.train_dataset, batch_size=self.batch_size, sampler=self.sampler, num_workers=12, pin_memory=True)
+        self.test_loader  = DataLoader(self.test_dataset,  batch_size=self.batch_size, shuffle=False, pin_memory=True)
+        self.train_loader = DataLoader(self.train_dataset, batch_size=self.batch_size, sampler=self.sampler, pin_memory=True)
 
         # Constroi a estrutura do modelo e move para o dispositivo
-        self.model = self.build_model(num_classes=len(self.train_dataset.classes))
+        num_classes = len(self.train_dataset.classes)
+        self.model = ModelFactory.build_model(model_name=model_name, num_classes=num_classes)
         self.model = self.model.to(self.device)
 
         # Configura o otimizador (apenas para as camadas que serão treinadas)
         self.optimizer = torch.optim.Adam(
             filter(lambda p: p.requires_grad, self.model.parameters()),
-            lr=1e-4
+            lr=lr
         )
         # Configura a função de perda
         self.criterion = nn.CrossEntropyLoss()
-
-    @staticmethod
-    def get_transforms():
-
-        train_transforms = transforms.Compose([
-            transforms.Resize((224, 224)),        # Redimensiona de acordo com o modelo pré-treinado
-            transforms.ToTensor(),                # [0,255] HxWxC → [0,1] CxHxW (converte para formato PyTorch)
-            transforms.Normalize(mean=[0.485, 0.456, 0.406],  # Média pré estabelecida para o modelo pré-treinado
-                                std=[0.229, 0.224, 0.225])
-        ])
-
-        test_transforms = transforms.Compose([
-            transforms.Resize((224, 224)),  
-            transforms.ToTensor(), 
-            transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                std=[0.229, 0.224, 0.225])
-        ])
-
-        return train_transforms, test_transforms
 
     def create_custom_sampler(self):
         # Conta imagens por classe
@@ -70,23 +58,6 @@ class SleepStageClassifier():
         sampler = WeightedRandomSampler(sample_weights, num_samples=len(sample_weights), replacement=True)
 
         return sampler
-
-    def build_model(self, num_classes):
-
-        # Carrega VGG16 com pesos pré-treinados
-        model = models.vgg16(weights=models.VGG16_Weights.DEFAULT)
-
-        # Adiciona uma tag nas camadas convolucionais (para indicar que não devem ser alteradas durante o treinamento)
-        for param in model.features.parameters():
-            param.requires_grad = False
-
-        # Substitui a última camada do classificador para se adequar ao número de classes do problema
-        model.classifier[6] = nn.Sequential(
-            nn.Dropout(0.4),
-            nn.Linear(4096, num_classes)
-        )
-
-        return model
 
     def apply_epochs(self, epochs=20, directory='models', name='vgg16_finetuned.pth', save_history=True, history_dir='metrics'):
 
