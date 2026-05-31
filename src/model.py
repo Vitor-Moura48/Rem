@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import os
 import numpy as np
@@ -10,6 +11,18 @@ from sklearn.metrics import (confusion_matrix, classification_report,
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 
 from model_factory import ModelFactory
+
+class SquaredCrossEntropyLoss(nn.Module):
+
+    def __init__(self, weight=None, label_smoothing=0.0):
+        super().__init__()
+        # 'none' permite pegar o vetor de erros individuais em vez da média do batch
+        self.ce = nn.CrossEntropyLoss(weight=weight, label_smoothing=label_smoothing, reduction='none')
+
+    def forward(self, inputs, targets):
+        loss_individual = self.ce(inputs, targets)
+        loss_quadrada = loss_individual ** 2
+        return loss_quadrada.mean()
 
 class SleepStageClassifier():
 
@@ -27,60 +40,87 @@ class SleepStageClassifier():
         lr = config["lr"]
 
         # --- DataLoader: cria os batches ---
-        self.sampler = self.create_custom_sampler()
-        self.test_loader  = DataLoader(self.test_dataset,  batch_size=self.batch_size, shuffle=False, pin_memory=True)
-        self.train_loader = DataLoader(self.train_dataset, batch_size=self.batch_size, sampler=self.sampler, pin_memory=True)
+        # O dataset de treino já sai balanceado do CachedConcatDataset, basta embaralhar
+        self.test_loader  = DataLoader(self.test_dataset,  batch_size=self.batch_size, shuffle=False, pin_memory=False)
+        self.train_loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, pin_memory=False)
 
         # Constroi a estrutura do modelo e move para o dispositivo
         num_classes = len(self.train_dataset.classes)
         self.model = ModelFactory.build_model(model_name=model_name, num_classes=num_classes)
         self.model = self.model.to(self.device)
 
+        # Obtém o weight decay
+        weight_decay = config.get("weight_decay", 0)
+
         # Configura o otimizador (apenas para as camadas que serão treinadas)
         self.optimizer = torch.optim.Adam(
             filter(lambda p: p.requires_grad, self.model.parameters()),
-            lr=lr
+            lr=lr,
+            weight_decay=weight_decay
         )
-        # Configura a função de perda
-        self.criterion = nn.CrossEntropyLoss()
 
-    def create_custom_sampler(self):
-        # Conta imagens por classe
-        class_counts = torch.zeros(len(self.train_dataset.classes))
-        for _, label in self.train_dataset.samples:
-            class_counts[label] += 1
-
-        # Pesos inversos à frequência
-        class_weights = 1.0 / class_counts
-
-        # Sampler — balanceia os batches
-        sample_weights = torch.tensor([class_weights[label] for _, label in self.train_dataset.samples])
-        sampler = WeightedRandomSampler(sample_weights, num_samples=len(sample_weights), replacement=True)
-
-        return sampler
+        # Mapeamento seguro: define explicitamente o peso pelo nome exato da classe
+        weight_map = {
+            'Sleep_stage_N1': 2.0,
+            'Sleep_stage_N2': 1.1,
+            'Sleep_stage_N3': 0.8,
+            'Sleep_stage_R': 1.2,
+            'Sleep_stage_W': 0.75
+        }
+        
+        # Constrói o tensor garantindo que a ordem bata exatamente com a ordem interna do PyTorch
+        weights_list = [weight_map[cls_name] for cls_name in self.train_dataset.classes]
+        class_weights = torch.tensor(weights_list, dtype=torch.float32).to(self.device)
+        
+        # Aplica o "Erro ao Quadrado" que você idealizou
+        self.criterion = SquaredCrossEntropyLoss(weight=class_weights, label_smoothing=0.1)
 
     def apply_epochs(self, epochs=20, directory='models', name='vgg16_finetuned.pth', save_history=True, history_dir='metrics'):
 
-        history = {'train_loss': [], 'train_acc': [], 'test_loss': [], 'test_acc': []}
+        # O Scheduler agora vai monitorar uma métrica que queremos MAXIMIZAR (Macro F1)
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='max', patience=3, factor=0.5)
+
+        history = {'train_loss': [], 'train_acc': [], 'test_loss': [], 'test_acc': [], 'test_f1': []}
+        
+        # Variáveis pro Early Stopping (agora baseadas no Macro F1)
+        best_f1 = -1.0
+        patience_counter = 0
+        early_stopping_patience = 10
+        os.makedirs(directory, exist_ok=True)
+
         for epoch in range(epochs):
 
             train_loss, train_acc = self.train_epoch()
-            test_loss,  test_acc  = self.evaluate_epoch()
+            test_loss, test_acc, test_macro_f1 = self.evaluate_epoch()
+            
+            # Passa o Macro F1 de validação pro scheduler agir (quanto maior, melhor)
+            self.scheduler.step(test_macro_f1)
 
             history['train_loss'].append(train_loss)
             history['train_acc'].append(train_acc)
             history['test_loss'].append(test_loss)
             history['test_acc'].append(test_acc)
+            history['test_f1'].append(test_macro_f1)
             
             print(f"Epoch {epoch+1:02d}/{epochs} | "
                 f"Train Loss: {train_loss:.4f} Acc: {train_acc:.3f} | "
-                f"Test  Loss: {test_loss:.4f} Acc: {test_acc:.3f}")
-        
-        os.makedirs(directory, exist_ok=True)
-        
-        torch.save(self.model.state_dict(), f'{directory}/{name}')
+                f"Test  Loss: {test_loss:.4f} Acc: {test_acc:.3f} F1: {test_macro_f1:.3f} | "
+                f"LR: {self.optimizer.param_groups[0]['lr']:.2e}")
+                
+            # Verifica Early Stopping e salva o MELHOR modelo com base no Macro F1
+            if test_macro_f1 > best_f1:
+                best_f1 = test_macro_f1
+                patience_counter = 0
+                torch.save(self.model.state_dict(), f'{directory}/{name}')
+                print(f" --> Melhor modelo salvo! Macro F1 subiu para {best_f1:.4f}")
+            else:
+                patience_counter += 1
+                if patience_counter >= early_stopping_patience:
+                    print(f"Early Stopping acionado na época {epoch+1}. O Macro F1 parou de melhorar.")
+                    break
         
         if save_history:
+            os.makedirs(history_dir, exist_ok=True)
             self.save_training_history(history, filename=name.replace('.pth', '.png'), save_dir=history_dir)
 
 
@@ -109,6 +149,8 @@ class SleepStageClassifier():
     def evaluate_epoch(self):
         self.model.eval()
         total_loss, correct = 0, 0
+        all_preds = []
+        all_labels = []
 
         with torch.no_grad():
             for images, labels in self.test_loader:
@@ -119,8 +161,14 @@ class SleepStageClassifier():
                 total_loss += loss.item()
                 preds = outputs.argmax(dim=1)
                 correct += (preds == labels).sum().item()
+                
+                all_preds.extend(preds.cpu().numpy())
+                all_labels.extend(labels.cpu().numpy())
 
-        return total_loss / len(self.test_loader), correct / len(self.test_loader.dataset)
+        # Calculando o Macro F1 para saber se a rede aprendeu todas as classes de forma justa.
+        macro_f1 = f1_score(all_labels, all_preds, average='macro')
+
+        return total_loss / len(self.test_loader), correct / len(self.test_loader.dataset), macro_f1
 
     def save_training_history(self, history, filename, save_dir='metrics'):
         epochs = range(1, len(history['train_loss']) + 1)
@@ -135,12 +183,14 @@ class SleepStageClassifier():
         ax1.legend()
 
         plt.tight_layout()
+        os.makedirs(save_dir, exist_ok=True)
         plt.savefig(f'{save_dir}/{filename}')
+        plt.close()
     
     def load_model(self, path):
         self.model.load_state_dict(torch.load(path, map_location=self.device))
 
-    def evaluate_model(self, save_dir='metrics'):
+    def evaluate_model(self, save_dir):
     
         os.makedirs(save_dir, exist_ok=True)
         
@@ -153,7 +203,7 @@ class SleepStageClassifier():
                 outputs = self.model(images)
                 preds = outputs.argmax(dim=1).cpu()
                 all_preds.extend(preds.numpy())
-                all_labels.extend(labels.numpy())
+                all_labels.extend(labels.cpu().numpy())
         
         all_preds  = np.array(all_preds)
         all_labels = np.array(all_labels)
@@ -199,6 +249,7 @@ class SleepStageClassifier():
         plt.title('Matriz de Confusão')
         plt.tight_layout()
         plt.savefig(f'{save_dir}/confusion_matrix_normalized.png')
+        plt.close()
         
         # --- Gráfico de métricas por classe ---
         fig, ax = plt.subplots(figsize=(8, 3))
@@ -227,3 +278,4 @@ class SleepStageClassifier():
         plt.title('Métricas por Classe', pad=20)
         plt.tight_layout()
         plt.savefig(f'{save_dir}/metrics_table.png')
+        plt.close()

@@ -1,55 +1,54 @@
+import torch
+import torch.nn as nn
 from torchvision import transforms
 from torchvision import models
-import torch.nn as nn
+
+class AddGaussianNoise(object):
+    def __init__(self, mean=0., std=0.05):
+        self.std = std
+        self.mean = mean
+        
+    def __call__(self, tensor):
+        return tensor + torch.randn(tensor.size()).to(tensor.device) * self.std + self.mean
+    
+    def __repr__(self):
+        return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)
 
 MODEL_CONFIGS = {
     "vgg16": {
         "input_size": (224, 224),
         "grayscale": False,
-        "normalize_mean": [0.485, 0.456, 0.406],
-        "normalize_std": [0.229, 0.224, 0.225],
         "batch_size": 32,
         "lr": 1e-4,
-    },
-    "resnet18": {
-        "input_size": (224, 224),
-        "grayscale": False,
-        "normalize_mean": [0.485, 0.456, 0.406],
-        "normalize_std": [0.229, 0.224, 0.225],
-        "batch_size": 32,
-        "lr": 1e-4,
-    },
-    "efficientnet_b0": {
-        "input_size": (224, 224),
-        "grayscale": False,
-        "normalize_mean": [0.485, 0.456, 0.406],
-        "normalize_std": [0.229, 0.224, 0.225],
-        "batch_size": 32,
-        "lr": 1e-4,
+        "weight_decay": 1e-4,
     },
     "lenet": {
-        "input_size": (32, 32),
+        "input_size": (224, 224),
         "grayscale": True,
-        "normalize_mean": [0.5],
-        "normalize_std": [0.5],
         "batch_size": 64,
         "lr": 1e-3,
+        "weight_decay": 1e-4,
     },
 }
 
 
 class LeNet(nn.Module):
-    """LeNet-5 adaptada para classificação de espectrogramas (1 canal, 32x32)."""
 
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, input_size=(90, 551)):
         super().__init__()
         self.features = nn.Sequential(
             nn.Conv2d(1, 6, 5),   nn.ReLU(), nn.MaxPool2d(2),
             nn.Conv2d(6, 16, 5),  nn.ReLU(), nn.MaxPool2d(2),
         )
+        
+        with torch.no_grad():
+            dummy = torch.zeros(1, 1, input_size[0], input_size[1])
+            flat_size = self.features(dummy).view(1, -1).shape[1]
+
         self.classifier = nn.Sequential(
-            nn.Linear(16 * 5 * 5, 120), nn.ReLU(),
-            nn.Linear(120, 84),         nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(flat_size, 120), nn.ReLU(),
+            nn.Linear(120, 84),        nn.ReLU(),
             nn.Linear(84, num_classes),
         )
 
@@ -77,14 +76,28 @@ class ModelFactory:
         if config["grayscale"]:
             pipeline.append(transforms.Grayscale(num_output_channels=1))
 
+        # Redimensiona e converte para tensor (0 a 1 float32)
         pipeline.extend([
             transforms.Resize(config["input_size"]),
             transforms.ToTensor(),
-            transforms.Normalize(mean=config["normalize_mean"], std=config["normalize_std"])
         ])
 
         composed = transforms.Compose(pipeline)
         return composed, composed
+
+    @staticmethod
+    def get_augmentations():
+        # Pipeline dinâmico aplicado pós-cache
+        return transforms.Compose([
+
+            # SpecAugment: Apaga aleatoriamente até 2 blocos do espectrograma (tempo ou frequência)
+            # scale=(0.02, 0.1) -> o bloco terá de 2% a 10% da área da imagem
+            transforms.RandomErasing(p=0.5, scale=(0.02, 0.1), ratio=(0.3, 3.3), value=0),
+            transforms.RandomErasing(p=0.5, scale=(0.02, 0.1), ratio=(0.3, 3.3), value=0),
+            
+            # Ruído Gaussiano Biológico
+            AddGaussianNoise(mean=0., std=0.05)
+        ])
 
     @staticmethod
     def build_vgg16(num_classes):
@@ -100,36 +113,15 @@ class ModelFactory:
         return model
     
     @staticmethod
-    def build_resnet18(num_classes):
-        
-        model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
-        for param in list(model.parameters())[:-2]:  # Congela tudo exceto a última camada
-            param.requires_grad = False
-        model.fc = nn.Linear(model.fc.in_features, num_classes)
-
-        return model
-
-    @staticmethod
-    def build_efficientnet_b0(num_classes):
-
-        model = models.efficientnet_b0(weights=models.EfficientNet_B0_Weights.DEFAULT)
-        for param in model.features.parameters():
-            param.requires_grad = False
-        model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
-
-        return model
-
-    @staticmethod
     def build_lenet(num_classes):
-
-        model = LeNet(num_classes)
+        config = ModelFactory.get_config("lenet")
+        input_size = config.get("input_size", (90, 621))
+        model = LeNet(num_classes, input_size=input_size)
         return model
 
 
     BUILDERS = {
         "vgg16": build_vgg16,
-        "resnet18": build_resnet18,
-        "efficientnet_b0": build_efficientnet_b0,
         "lenet": build_lenet,
     }
 

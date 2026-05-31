@@ -11,6 +11,7 @@ from model_factory import ModelFactory
 
 if __name__ == "__main__":
     
+    """
     # (-3, 3) é o padrão do Z-Score. Apertar para (-2, 2) aumenta o contraste.
     vlim = (-1.8, 2.2)
 
@@ -41,14 +42,15 @@ if __name__ == "__main__":
     
     for edf_path, hypnogram_path in paths:
         converter.convert(edf_path=edf_path, hypnogram_path=hypnogram_path)
-    
+    """
+
 
     # Divide os dados em treino e teste (Não utilizado ao aplicar o LOSO)
     #splitter = DataSplitter()
     #splitter.split(seed=42)
 
 
-    """
+    
     model_name = "lenet"  # "vgg16", "lenet"
     subjects_per_fold = 4   # Quantos sujeitos vão para o conjunto de TESTE por fold
 
@@ -112,4 +114,4 @@ if __name__ == "__main__":
         del classifier, train_dataset, test_dataset
         gc.collect()
         torch.cuda.empty_cache()
-    """
+    
