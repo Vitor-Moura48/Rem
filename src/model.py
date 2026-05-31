@@ -61,7 +61,7 @@ class SleepStageClassifier():
 
         # Mapeamento seguro: define explicitamente o peso pelo nome exato da classe
         weight_map = {
-            'Sleep_stage_N1': 2.0,
+            'Sleep_stage_N1': 2.5,
             'Sleep_stage_N2': 1.1,
             'Sleep_stage_N3': 0.8,
             'Sleep_stage_R': 1.2,

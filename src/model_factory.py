@@ -91,12 +91,11 @@ class ModelFactory:
         return transforms.Compose([
 
             # SpecAugment: Apaga aleatoriamente até 2 blocos do espectrograma (tempo ou frequência)
-            # scale=(0.02, 0.1) -> o bloco terá de 2% a 10% da área da imagem
             transforms.RandomErasing(p=0.5, scale=(0.02, 0.1), ratio=(0.3, 3.3), value=0),
             transforms.RandomErasing(p=0.5, scale=(0.02, 0.1), ratio=(0.3, 3.3), value=0),
             
             # Ruído Gaussiano Biológico
-            AddGaussianNoise(mean=0., std=0.05)
+            AddGaussianNoise(mean=0., std=0.1)
         ])
 
     @staticmethod
