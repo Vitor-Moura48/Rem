@@ -127,14 +127,14 @@ class SpectrogramConverter:
             # Converte TODO o bloco para dB de uma vez
             power_data_db = 10 * np.log10(power_data + 1e-20)
 
-            # Aplica Z-Score por frequência usando as estatísticas do dataset!
+            # Aplica Z-Score por frequência usando as estatísticas do dataset
             if self.freq_means is not None and self.freq_stds is not None:
+
                 # Alinha os arrays (n_freqs,) para broadcast com (n_epochs, n_channels, n_freqs, n_times)
                 m = self.freq_means[np.newaxis, np.newaxis, :, np.newaxis]
                 s = self.freq_stds[np.newaxis, np.newaxis, :, np.newaxis]
                 
-                # Cada pixel agora não é mais "dB absolutos", é "Quantos desvios padrões 
-                # esse ponto está acima ou abaixo do esperado para essa exata frequência"
+                # Cada pixel agora representa o número de desvios padrão daquela frequência em relação à média global do dataset
                 normalized_data = (power_data_db - m) / s
             else:
                 normalized_data = power_data_db
@@ -168,7 +168,7 @@ class SpectrogramConverter:
             cmap = plt.colormaps[self.cmap]
             norm = plt.Normalize(vmin=vmin, vmax=vmax)
             
-            # Flip vertical para manter frequências baixas embaixo (equivalente ao origin="lower")
+            # Flip vertical para manter frequências baixas embaixo
             rgba = cmap(norm(np.flipud(power_db)))
             
             plt.imsave(filepath, rgba, dpi=self.dpi)

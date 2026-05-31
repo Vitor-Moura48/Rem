@@ -1,8 +1,8 @@
 sleep-edf-database-expanded-1.0.0/
-espectrograms/*
+spectrograms/*
 dataset/*
 metrics/*
 models/*
-
 .venv/
 __pycache__/
+haaglanden-medisch-centrum-sleep-staging-database-1.1/

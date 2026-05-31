@@ -11,7 +11,6 @@ from model_factory import ModelFactory
 
 if __name__ == "__main__":
     
-    # Ajuste vlim para controlar o contraste das imagens geradas.
     # (-3, 3) é o padrão do Z-Score. Apertar para (-2, 2) aumenta o contraste.
     vlim = (-1.8, 2.2)
 
