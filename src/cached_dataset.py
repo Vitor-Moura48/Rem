@@ -19,7 +19,6 @@ class CachedImageFolder(Dataset):
         for idx in tqdm(range(len(image_folder)), desc="Caching", unit="img"):
             image, label = image_folder[idx]  # Já aplica o transform
             
-            # image já é um tensor [C, H, W] float32 entre 0 e 1 (gerado pelo ToTensor())
             # Converte para uint8 (0 a 255) reduz o consumo de RAM (4 bytes -> 1 byte por pixel)
             image_uint8 = (image * 255).to(torch.uint8)
             self.cached_images.append(image_uint8)

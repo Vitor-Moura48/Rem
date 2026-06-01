@@ -16,7 +16,7 @@ class SquaredCrossEntropyLoss(nn.Module):
 
     def __init__(self, weight=None, label_smoothing=0.0):
         super().__init__()
-        # 'none' permite pegar o vetor de erros individuais em vez da média do batch
+
         self.ce = nn.CrossEntropyLoss(weight=weight, label_smoothing=label_smoothing, reduction='none')
 
     def forward(self, inputs, targets):
@@ -53,39 +53,39 @@ class SleepStageClassifier():
         weight_decay = config.get("weight_decay", 0)
 
         # Configura o otimizador (apenas para as camadas que serão treinadas)
-        self.optimizer = torch.optim.Adam(
+        self.optimizer = torch.optim.AdamW(
             filter(lambda p: p.requires_grad, self.model.parameters()),
             lr=lr,
             weight_decay=weight_decay
         )
 
-        # Mapeamento seguro: define explicitamente o peso pelo nome exato da classe
+        # Define o peso pelo nome da classe
         weight_map = {
-            'Sleep_stage_N1': 2.5,
-            'Sleep_stage_N2': 1.1,
+            'Sleep_stage_N1': 3.0,
+            'Sleep_stage_N2': 1.0,
             'Sleep_stage_N3': 0.8,
-            'Sleep_stage_R': 1.2,
-            'Sleep_stage_W': 0.75
+            'Sleep_stage_R': 3.0,
+            'Sleep_stage_W': 0.8
         }
         
         # Constrói o tensor garantindo que a ordem bata exatamente com a ordem interna do PyTorch
         weights_list = [weight_map[cls_name] for cls_name in self.train_dataset.classes]
         class_weights = torch.tensor(weights_list, dtype=torch.float32).to(self.device)
         
-        # Aplica o "Erro ao Quadrado" que você idealizou
+        # Aplica o "Erro ao Quadrado"
         self.criterion = SquaredCrossEntropyLoss(weight=class_weights, label_smoothing=0.1)
 
     def apply_epochs(self, epochs=20, directory='models', name='vgg16_finetuned.pth', save_history=True, history_dir='metrics'):
 
-        # O Scheduler agora vai monitorar uma métrica que queremos MAXIMIZAR (Macro F1)
+        # Monitora o Macro F1
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='max', patience=3, factor=0.5)
 
         history = {'train_loss': [], 'train_acc': [], 'test_loss': [], 'test_acc': [], 'test_f1': []}
         
-        # Variáveis pro Early Stopping (agora baseadas no Macro F1)
+        # Variáveis pro Early Stopping (baseadas no Macro F1)
         best_f1 = -1.0
         patience_counter = 0
-        early_stopping_patience = 10
+        early_stopping_patience = 8
         os.makedirs(directory, exist_ok=True)
 
         for epoch in range(epochs):
@@ -165,7 +165,7 @@ class SleepStageClassifier():
                 all_preds.extend(preds.cpu().numpy())
                 all_labels.extend(labels.cpu().numpy())
 
-        # Calculando o Macro F1 para saber se a rede aprendeu todas as classes de forma justa.
+        # Calculando o Macro F1 para saber se a rede aprendeu todas as classes de forma justa
         macro_f1 = f1_score(all_labels, all_preds, average='macro')
 
         return total_loss / len(self.test_loader), correct / len(self.test_loader.dataset), macro_f1

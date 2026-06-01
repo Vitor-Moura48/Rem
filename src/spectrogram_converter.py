@@ -28,12 +28,14 @@ class SpectrogramConverter:
         self.freq_stds  = []
 
         for label, path in [("FpzCz", global_stats_path_fpz), ("PzOz", global_stats_path_pzoz)]:
+
             if path and os.path.exists(path):
                 with open(path, "r") as f:
                     stats = json.load(f)
                 self.freq_means.append(np.array(stats["means"]))
                 self.freq_stds.append(np.array(stats["stds"]))
                 print(f"Estatísticas [{label}] carregadas de {path}")
+                
             else:
                 self.freq_means.append(None)
                 self.freq_stds.append(None)

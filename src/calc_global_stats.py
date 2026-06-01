@@ -89,7 +89,23 @@ if __name__ == "__main__":
         ("sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4121E0-PSG.edf", "sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4121EC-Hypnogram.edf"),
         ("sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4131E0-PSG.edf", "sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4131EC-Hypnogram.edf"),
         ("sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4141E0-PSG.edf", "sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4141EU-Hypnogram.edf"),
-        ("sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4151E0-PSG.edf", "sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4151EC-Hypnogram.edf")
+        ("sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4151E0-PSG.edf", "sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4151EC-Hypnogram.edf"),
+        ("sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4161E0-PSG.edf", "sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4161EC-Hypnogram.edf"),
+        ("sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4171E0-PSG.edf", "sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4171EU-Hypnogram.edf"),
+        ("sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4181E0-PSG.edf", "sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4181EC-Hypnogram.edf"),
+        ("sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4191E0-PSG.edf", "sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4191EP-Hypnogram.edf"),
+        ("sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4201E0-PSG.edf", "sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4201EC-Hypnogram.edf"),
+        ("sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4211E0-PSG.edf", "sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4211EC-Hypnogram.edf"),
+        ("sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4221E0-PSG.edf", "sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4221EJ-Hypnogram.edf"),
+        ("sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4231E0-PSG.edf", "sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4231EJ-Hypnogram.edf"),
+        ("sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4241E0-PSG.edf", "sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4241EC-Hypnogram.edf"),
+        ("sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4251E0-PSG.edf", "sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4251EP-Hypnogram.edf"),
+        ("sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4261F0-PSG.edf", "sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4261FM-Hypnogram.edf"),
+        ("sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4271F0-PSG.edf", "sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4271FC-Hypnogram.edf"),
+        ("sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4281G0-PSG.edf", "sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4281GC-Hypnogram.edf"),
+        ("sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4291G0-PSG.edf", "sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4291GA-Hypnogram.edf"),
+        ("sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4301E0-PSG.edf", "sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4301EC-Hypnogram.edf"),
+        ("sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4311E0-PSG.edf", "sleep-edf-database-expanded-1.0.0\sleep-cassette\SC4311EC-Hypnogram.edf"),
     ]
     freqs = np.linspace(0.5, 35, 90)
     calculate_global_stats(paths, freqs)

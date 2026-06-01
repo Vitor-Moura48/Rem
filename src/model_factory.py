@@ -17,7 +17,7 @@ class AddGaussianNoise(object):
 MODEL_CONFIGS = {
     "vgg16": {
         "input_size": (224, 224),
-        "grayscale": False,
+        "grayscale": True,
         "batch_size": 32,
         "lr": 1e-4,
         "weight_decay": 1e-4,
@@ -37,8 +37,8 @@ class LeNet(nn.Module):
     def __init__(self, num_classes, input_size=(90, 551)):
         super().__init__()
         self.features = nn.Sequential(
-            nn.Conv2d(1, 6, 5),   nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(6, 16, 5),  nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(1, 6, 5),  nn.BatchNorm2d(6),   nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(6, 16, 5),  nn.BatchNorm2d(16), nn.ReLU(), nn.MaxPool2d(2),
         )
         
         with torch.no_grad():
@@ -87,14 +87,14 @@ class ModelFactory:
 
     @staticmethod
     def get_augmentations():
-        # Pipeline dinâmico aplicado pós-cache
+
         return transforms.Compose([
 
             # SpecAugment: Apaga aleatoriamente até 2 blocos do espectrograma (tempo ou frequência)
             transforms.RandomErasing(p=0.5, scale=(0.02, 0.1), ratio=(0.3, 3.3), value=0),
             transforms.RandomErasing(p=0.5, scale=(0.02, 0.1), ratio=(0.3, 3.3), value=0),
             
-            # Ruído Gaussiano Biológico
+            # Ruído Gaussiano
             AddGaussianNoise(mean=0., std=0.1)
         ])
 
@@ -102,8 +102,14 @@ class ModelFactory:
     def build_vgg16(num_classes):
 
         model = models.vgg16(weights=models.VGG16_Weights.DEFAULT)
+
         for param in model.features.parameters():
             param.requires_grad = False
+        
+        # Descongela o último bloco conv (features 24 em diante)
+        for param in model.features[24:].parameters():
+            param.requires_grad = True
+
         model.classifier[6] = nn.Sequential(
             nn.Dropout(0.4),
             nn.Linear(4096, num_classes)
