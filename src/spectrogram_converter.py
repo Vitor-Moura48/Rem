@@ -14,7 +14,8 @@ class SpectrogramConverter:
         epoch_range=300,
         dpi=100,
         vlim=(-3.0, 3.0),
-        global_stats_path="global_freq_stats.json"
+        global_stats_path_fpz="global_freq_stats_FpzCz.json",
+        global_stats_path_pzoz="global_freq_stats_PzOz.json",
     ):
         self.output_dir = output_dir
         self.freqs = freqs if freqs is not None else np.linspace(0.5, 35, 90)
@@ -23,18 +24,20 @@ class SpectrogramConverter:
         self.dpi = dpi
         self.vlim = vlim
 
-        # Carrega a "régua" global de contraste para cada frequência individual
-        self.freq_means = None
-        self.freq_stds = None
-        if global_stats_path and os.path.exists(global_stats_path):
-            with open(global_stats_path, "r") as f:
-                stats = json.load(f)
-                self.freq_means = np.array(stats["means"])
-                self.freq_stds = np.array(stats["stds"])
-            print(f"Estatísticas globais por frequência carregadas de {global_stats_path}")
-        else:
-            print(f"AVISO: {global_stats_path} não encontrado. Z-score por frequência não será aplicado.")
+        self.freq_means = []
+        self.freq_stds  = []
 
+        for label, path in [("FpzCz", global_stats_path_fpz), ("PzOz", global_stats_path_pzoz)]:
+            if path and os.path.exists(path):
+                with open(path, "r") as f:
+                    stats = json.load(f)
+                self.freq_means.append(np.array(stats["means"]))
+                self.freq_stds.append(np.array(stats["stds"]))
+                print(f"Estatísticas [{label}] carregadas de {path}")
+            else:
+                self.freq_means.append(None)
+                self.freq_stds.append(None)
+                print(f"AVISO: {path} não encontrado. Z-score para [{label}] não será aplicado.")
 
     def convert(self, edf_path, hypnogram_path):
 
@@ -55,7 +58,7 @@ class SpectrogramConverter:
         print(raw.info)
 
         # Seleciona apenas os sinais de EEG para análise
-        raw.pick(picks=['EEG Fpz-Cz'])
+        raw.pick(picks=['EEG Fpz-Cz', 'EEG Pz-Oz'])
 
         raw.filter(0.5, 35.0, verbose=False)
 
@@ -123,21 +126,17 @@ class SpectrogramConverter:
 
             # Extrai a matriz de potência bruta: shape (n_epochs, n_channels, n_freqs, n_times)
             power_data = tfr.data
-
-            # Converte TODO o bloco para dB de uma vez
             power_data_db = 10 * np.log10(power_data + 1e-20)
 
-            # Aplica Z-Score por frequência usando as estatísticas do dataset
-            if self.freq_means is not None and self.freq_stds is not None:
-
-                # Alinha os arrays (n_freqs,) para broadcast com (n_epochs, n_channels, n_freqs, n_times)
-                m = self.freq_means[np.newaxis, np.newaxis, :, np.newaxis]
-                s = self.freq_stds[np.newaxis, np.newaxis, :, np.newaxis]
-                
-                # Cada pixel agora representa o número de desvios padrão daquela frequência em relação à média global do dataset
-                normalized_data = (power_data_db - m) / s
-            else:
-                normalized_data = power_data_db
+            # Normaliza cada canal com suas próprias estatísticas
+            normalized_data = np.empty_like(power_data_db)
+            for ch_idx in range(2):
+                if self.freq_means[ch_idx] is not None:
+                    m = self.freq_means[ch_idx][np.newaxis, np.newaxis, :, np.newaxis]
+                    s = self.freq_stds[ch_idx][np.newaxis, np.newaxis, :, np.newaxis]
+                    normalized_data[:, ch_idx, :, :] = (power_data_db[:, ch_idx, :, :] - m) / s
+                else:
+                    normalized_data[:, ch_idx, :, :] = power_data_db[:, ch_idx, :, :]
         
             # Usa o vlim fixo definido no construtor. Agora ele representa Desvios Padrões.
             vmin, vmax = self.vlim
@@ -157,18 +156,24 @@ class SpectrogramConverter:
                 run_id = str(uuid.uuid4())[:8]
                 base_path = f"{self.output_dir}/subject_{subject_id}/{stage_clean}/{run_id}"
 
-                # Renderiza o espectrograma normalizado
-                power_norm = normalized_data[i, 0, :, :]
-                self._save_spectrogram_image(power_norm, f"{base_path}.png", vmin, vmax)
+                power_ch0 = normalized_data[i, 0, :, :]
+                power_ch1 = normalized_data[i, 1, :, :]
+                self._save_spectrogram_image(power_ch0, power_ch1, f"{base_path}.png", vmin, vmax)
 
             del tfr, power_data, power_data_db, normalized_data
 
-    def _save_spectrogram_image(self, power_db, filepath, vmin, vmax):
+    def _save_spectrogram_image(self, power_ch0, power_ch1, filepath, vmin, vmax):
             
-            cmap = plt.colormaps[self.cmap]
-            norm = plt.Normalize(vmin=vmin, vmax=vmax)
-            
-            # Flip vertical para manter frequências baixas embaixo
-            rgba = cmap(norm(np.flipud(power_db)))
-            
-            plt.imsave(filepath, rgba, dpi=self.dpi)
+        cmap = plt.colormaps[self.cmap]
+        norm = plt.Normalize(vmin=vmin, vmax=vmax)
+
+        rgba_ch0 = cmap(norm(np.flipud(power_ch0)))  # (n_freqs, n_times, 4)
+        rgba_ch1 = cmap(norm(np.flipud(power_ch1)))  # (n_freqs, n_times, 4)
+
+        # Separador de 5 pixels pretos opacos
+        n_times   = rgba_ch0.shape[1]
+        separator = np.zeros((5, n_times, 4))
+        separator[:, :, 3] = 1.0  # alpha = 1 (opaco)
+
+        combined = np.vstack([rgba_ch0, separator, rgba_ch1])
+        plt.imsave(filepath, combined, dpi=self.dpi)

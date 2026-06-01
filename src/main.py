@@ -154,14 +154,14 @@ if __name__ == "__main__":
 
     # Métodos de execução
     # =================================================
-    #run_kfold(
-    #    model_name=model_name,
-    #    subjects_per_fold=4,
-    #    max_oversample=1
-    #    )
-    run_manual(
+    run_kfold(
         model_name=model_name,
-        train_idx=[0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-        test_idx=[6],  # 2, *6, 7, 9, 10*, 13
+        subjects_per_fold=4,
         max_oversample=1
         )
+    #run_manual(
+    #    model_name=model_name,
+    #    train_idx=[0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    #    test_idx=[6],  # 2, *6, 7, 9, 10*, 13
+    #    max_oversample=1
+    #    )

@@ -5,9 +5,12 @@ import json
 
 def calculate_global_stats(paths, freqs):
     print("Iniciando cálculo das estatísticas globais por frequência...")
+
+    channels = ['EEG Fpz-Cz', 'EEG Pz-Oz']
+    n_channels = len(channels)
     
-    all_power_sums = np.zeros(len(freqs))
-    all_power_sq_sums = np.zeros(len(freqs))
+    all_power_sums = np.zeros((n_channels, len(freqs)))
+    all_power_sq_sums = np.zeros((n_channels, len(freqs)))
     total_points = 0
     
     for edf_path, hypnogram_path in paths:
@@ -15,8 +18,8 @@ def calculate_global_stats(paths, freqs):
         raw = mne.io.read_raw_edf(edf_path, preload=True, verbose=False)
         annot = mne.read_annotations(hypnogram_path)
         raw.set_annotations(annot)
-        raw.pick(picks=['EEG Fpz-Cz'])
-        raw.filter(0.5, 45, verbose=False)
+        raw.pick(picks=channels)
+        raw.filter(0.5, 35, verbose=False)
         
         annotation_desc_2_event_id = {
             "Sleep stage W": 1, "Sleep stage 1": 2, "Sleep stage 2": 3,
@@ -35,17 +38,18 @@ def calculate_global_stats(paths, freqs):
             tfr = subset.compute_tfr(method="morlet", freqs=freqs, n_cycles=freqs*0.5, average=False, verbose=False)
             power_data = tfr.data # shape: (n_epochs_chunk, n_channels, n_freqs, n_times)
 
-        # Converte para dB
-        power_db = 10 * np.log10(power_data + 1e-20)
+            # Converte para dB
+            power_db = 10 * np.log10(power_data + 1e-20)
         
-        # Acumula as somas
-        for f_idx in range(len(freqs)):
-            freq_data = power_db[:, 0, f_idx, :]
-            all_power_sums[f_idx] += freq_data.sum()
-            all_power_sq_sums[f_idx] += (freq_data ** 2).sum()
-            
-        total_points += power_db.shape[0] * power_db.shape[3]
-        del tfr, power_data, power_db
+            # Acumula as somas
+            for ch_idx in range(n_channels):
+                for f_idx in range(len(freqs)):
+                    freq_data = power_db[:, ch_idx, f_idx, :]
+                    all_power_sums[ch_idx, f_idx] += freq_data.sum()
+                    all_power_sq_sums[ch_idx, f_idx] += (freq_data ** 2).sum()
+                
+            total_points += power_db.shape[0] * power_db.shape[3]
+            del tfr, power_data, power_db
             
         
     print("\nCalculando Médias e Desvios Padrões finais...")
@@ -53,18 +57,19 @@ def calculate_global_stats(paths, freqs):
     variances = (all_power_sq_sums / total_points) - (means ** 2)
     stds = np.sqrt(np.maximum(variances, 1e-10))
     
-    stats = {
-        "freqs": freqs.tolist(),
-        "means": means.tolist(),
-        "stds": stds.tolist()
-    }
-    
-    output_file = "global_freq_stats.json"
-    with open(output_file, "w") as f:
-        json.dump(stats, f, indent=4)
+    output_names = ["global_freq_stats_FpzCz.json", "global_freq_stats_PzOz.json"]
+    for ch_idx, output_file in enumerate(output_names):
+
+        stats = {
+            "freqs": freqs.tolist(),
+            "means": means[ch_idx].tolist(),
+            "stds": stds[ch_idx].tolist()
+        }
         
-    print(f"Pronto! Estatísticas globais salvas em {output_file}.")
-    print("Agora o conversor pode usar esses valores absolutos para igualar as frequências.")
+        with open(output_file, "w") as f:
+            json.dump(stats, f, indent=4)
+        
+        print(f"  Salvo: {output_file}")
 
 if __name__ == "__main__":
     # Caminhos do dataset local para calcular a referência
