@@ -75,7 +75,7 @@ class SleepStageClassifier():
         # Aplica o "Erro ao Quadrado"
         self.criterion = SquaredCrossEntropyLoss(weight=class_weights, label_smoothing=0.1)
 
-    def apply_epochs(self, epochs=20, directory='models', name='vgg16_finetuned.pth', save_history=True, history_dir='metrics'):
+    def apply_epochs(self, epochs=20, directory='models', name='lenet_finetuned.pth', save_history=True, history_dir='metrics'):
 
         # Monitora o Macro F1
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='max', patience=3, factor=0.5)

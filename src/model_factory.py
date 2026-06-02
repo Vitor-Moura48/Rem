@@ -15,13 +15,6 @@ class AddGaussianNoise(object):
         return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)
 
 MODEL_CONFIGS = {
-    "vgg16": {
-        "input_size": (224, 224),
-        "grayscale": True,
-        "batch_size": 32,
-        "lr": 1e-4,
-        "weight_decay": 1e-4,
-    },
     "lenet": {
         "input_size": (224, 224),
         "grayscale": True,
@@ -98,25 +91,7 @@ class ModelFactory:
             AddGaussianNoise(mean=0., std=0.1)
         ])
 
-    @staticmethod
-    def build_vgg16(num_classes):
 
-        model = models.vgg16(weights=models.VGG16_Weights.DEFAULT)
-
-        for param in model.features.parameters():
-            param.requires_grad = False
-        
-        # Descongela o último bloco conv (features 24 em diante)
-        for param in model.features[24:].parameters():
-            param.requires_grad = True
-
-        model.classifier[6] = nn.Sequential(
-            nn.Dropout(0.4),
-            nn.Linear(4096, num_classes)
-        )
-
-        return model
-    
     @staticmethod
     def build_lenet(num_classes):
         config = ModelFactory.get_config("lenet")
@@ -126,7 +101,6 @@ class ModelFactory:
 
 
     BUILDERS = {
-        "vgg16": build_vgg16,
         "lenet": build_lenet,
     }
 
