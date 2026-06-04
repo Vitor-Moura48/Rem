@@ -6,10 +6,12 @@ import json
 def calculate_global_stats(paths, freqs):
     print("Iniciando cálculo das estatísticas globais por frequência...")
 
-    channels = ['EEG Fpz-Cz', 'EEG Pz-Oz']
-    n_channels = len(channels)
+    eeg_channels = ['EEG Fpz-Cz', 'EEG Pz-Oz']
+    eog_channel  = ['EOG horizontal']
+    all_channels = eeg_channels + eog_channel
+    n_channels   = len(all_channels)
     
-    all_power_sums = np.zeros((n_channels, len(freqs)))
+    all_power_sums    = np.zeros((n_channels, len(freqs)))
     all_power_sq_sums = np.zeros((n_channels, len(freqs)))
     total_points = 0
     
@@ -18,7 +20,8 @@ def calculate_global_stats(paths, freqs):
         raw = mne.io.read_raw_edf(edf_path, preload=True, verbose=False)
         annot = mne.read_annotations(hypnogram_path)
         raw.set_annotations(annot)
-        raw.pick(picks=channels)
+        raw.pick(picks=all_channels)
+        # EEG e EOG usam o mesmo filtro para manter espectrogramas com a mesma dimensão
         raw.filter(0.5, 35, verbose=False)
         
         annotation_desc_2_event_id = {
@@ -57,7 +60,11 @@ def calculate_global_stats(paths, freqs):
     variances = (all_power_sq_sums / total_points) - (means ** 2)
     stds = np.sqrt(np.maximum(variances, 1e-10))
     
-    output_names = ["global_freq_stats_FpzCz.json", "global_freq_stats_PzOz.json"]
+    output_names = [
+        "global_freq_stats_FpzCz.json",
+        "global_freq_stats_PzOz.json",
+        "global_freq_stats_EOG.json",
+    ]
     for ch_idx, output_file in enumerate(output_names):
 
         stats = {

@@ -38,39 +38,22 @@ from sklearn.preprocessing import StandardScaler
 
 class MLPipeline:
     def __init__(self, X_train, y_train, X_test, y_test, class_names):
-        # 1. Aplica o Balanceador Físico (Random Oversampling)
-        X_train_bal, y_train_bal = self._balance_data(X_train, y_train)
-        
-        # 2. Escalonamento dos dados (Crucial para Redes Neurais e KNN)
+        # Escalonamento dos dados (Crucial para Redes Neurais e KNN)
         scaler = StandardScaler()
-        self.X_train = scaler.fit_transform(X_train_bal)
+        self.X_train = scaler.fit_transform(X_train)
         self.X_test = scaler.transform(X_test)
         
-        self.y_train = y_train_bal
+        self.y_train = y_train
         self.y_test = y_test
         self.class_names = class_names
         
         # Modelos clássicos de Machine Learning habilitados
         self.models = {
-            "RandomForest": RandomForestClassifier(n_estimators=300, max_depth=None, n_jobs=-1, random_state=42),
+            "RandomForest": RandomForestClassifier(n_estimators=300, max_depth=None, class_weight='balanced', n_jobs=-1, random_state=42),
             "KNN_GPU": TorchKNN(n_neighbors=5),
             "NeuralNet": MLPClassifier(hidden_layer_sizes=(200,), activation='relu', solver='adam', max_iter=300, early_stopping=False, random_state=42)
         }
 
-    def _balance_data(self, X, y):
-        classes, counts = np.unique(y, return_counts=True)
-        max_count = np.max(counts)
-        print(f"  [Balanceador] Alinhando todas as classes para {max_count} amostras cada...")
-        
-        X_bal, y_bal = [], []
-        for c in classes:
-            idx = np.where(y == c)[0]
-            # Seleciona aleatoriamente com repetição até atingir o número da maior classe
-            resampled_idx = np.random.choice(idx, size=max_count, replace=True)
-            X_bal.append(X[resampled_idx])
-            y_bal.append(y[resampled_idx])
-            
-        return np.concatenate(X_bal), np.concatenate(y_bal)
 
     def train_and_evaluate(self, fold_name, save_dir='metrics'):
         for name, clf in self.models.items():

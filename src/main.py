@@ -117,7 +117,6 @@ if __name__ == "__main__":
 
     converter = SpectrogramConverter(
         output_dir='spectrograms',
-        cmap="gray",
         vlim=vlim,
     )
 
@@ -166,7 +165,7 @@ if __name__ == "__main__":
     #splitter.split(seed=42)
 
 
-  
+    
     model_name = "lenet"
 
     # Métodos de execução
@@ -174,7 +173,7 @@ if __name__ == "__main__":
     run_kfold(
         model_name=model_name,
         subjects_per_fold=8,
-        max_oversample=1
+        max_oversample=2
         )
     #run_manual(
     #    model_name=model_name,
@@ -182,5 +181,6 @@ if __name__ == "__main__":
     #    test_idx=[6],  # 2, *6, 7, 9, 10*, 13
     #    max_oversample=1
     #    )
+    
 
     
