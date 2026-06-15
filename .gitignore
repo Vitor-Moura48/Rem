@@ -7,3 +7,4 @@ models/*
 __pycache__/
 haaglanden-medisch-centrum-sleep-staging-database-1.1/
 features/*
+debug_filters/*

@@ -173,7 +173,7 @@ if __name__ == "__main__":
     run_kfold(
         model_name=model_name,
         subjects_per_fold=8,
-        max_oversample=2
+        max_oversample=3
         )
     #run_manual(
     #    model_name=model_name,
